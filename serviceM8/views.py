@@ -167,33 +167,40 @@ def servicem8_webhook(request):
     if request.method == "POST":
         ServiceM8WebhookLog.objects.create(logger="Webhook POST method triggered")
         
+        # Check if this is a form-encoded verification request
+        if request.POST.get('mode') == 'subscribe' and 'challenge' in request.POST:
+            challenge = request.POST.get('challenge')
+            ServiceM8WebhookLog.objects.create(
+                logger="Webhook verification challenge received",
+                entry_data={"challenge": challenge}
+            )
+            # Return ONLY the challenge value, with no other content
+            return HttpResponse(challenge, content_type='text/plain')
+        
+        # If not a verification request, try to parse JSON
         try:
+            # Handle regular webhook events (JSON payload)
             data = json.loads(request.body)
             ServiceM8WebhookLog.objects.create(logger="Webhook received data", entry_data=data)
-
-            # Webhook verification
-            if data.get("mode") == "subscribe" and "challenge" in data:
-                ServiceM8WebhookLog.objects.create(logger="Webhook verification challenge", entry_data={"challenge": data["challenge"]})
-                return HttpResponse(data["challenge"])  # Respond with the challenge
-
-            # Handle webhook events
+            
+            # Process the webhook data
             handle_webhook_event(data)
-
-            return JsonResponse({"status": "received"}, status=200)
-
+            
+            return HttpResponse(status=200)
+            
         except json.JSONDecodeError:
             ServiceM8WebhookLog.objects.create(logger="Webhook error - Invalid JSON")
-            return JsonResponse({"error": "Invalid JSON body"}, status=400)
+            return HttpResponse(status=200)  # Still return 200 to prevent retries
         except Exception as e:
-            ServiceM8WebhookLog.objects.create(logger="Webhook error", entry_data={"error": str(e)})
-            return JsonResponse({"error": str(e)}, status=400)
+            ServiceM8WebhookLog.objects.create(
+                logger="Webhook error", 
+                entry_data={"error": str(e)}
+            )
+            return HttpResponse(status=200)  # Still return 200 to prevent retries
+    
+    return HttpResponse(status=405)  # Method not allowed
 
-    elif request.method == "GET":
-        ServiceM8WebhookLog.objects.create(logger="Webhook GET method triggered")
-        challenge = request.GET.get('challenge')
-        if challenge:
-            ServiceM8WebhookLog.objects.create(logger="Webhook GET challenge received", entry_data={"challenge": challenge})
-            return HttpResponse(challenge)
+
 
     return JsonResponse({"error": "Invalid request method"}, status=405)
 def handle_webhook_event(data):
