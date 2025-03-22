@@ -237,28 +237,17 @@ def create_servicem8_webhook(access_token, callback_url, fields=None):
         return {"error": "Invalid JSON response", "status_code": response.status_code, "response_text": response.text}
 
 
-@csrf_exempt
 def subscribe_webhook(request):
     token = ServiceM8Token.objects.first()
     ServiceM8WebhookLog.objects.create(logger="initial webhook subscribe triggered")
+    body_data = json.loads(request.body)  # Parse raw request body
+    ServiceM8WebhookLog.objects.create(logger="subscribe webhook function data",entry_data = body_data)
 
-    # Fetch query parameters
-    callback_url = request.GET.get("callback_url")
-    fields = request.GET.get("fields")
 
-    # Log received data
-    ServiceM8WebhookLog.objects.create(
-        logger="subscribe webhook function data",
-        event_data={"callback_url": callback_url, "fields": fields}
-    )
+    callback_url = body_data.get("callback_url")
+    fields = body_data.get("fields")
+    print(f"token: {token} callback_url : {callback_url}  fields: {fields}")
 
-    print(f"token: {token} callback_url: {callback_url} fields: {fields}")
-
-    if not callback_url or not fields:
-        return JsonResponse({"error": "Missing required parameters"}, status=400)
-
-    create_servicem8_webhook(token.access_token, callback_url, fields)
-    
-    return JsonResponse({"message": "success"})
-
+    create_servicem8_webhook(token, callback_url=callback_url, fields=fields)
+    return JsonResponse({"message":"success"})
 
