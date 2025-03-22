@@ -248,6 +248,6 @@ def subscribe_webhook(request):
     fields = body_data.get("fields")
     print(f"token: {token} callback_url : {callback_url}  fields: {fields}")
 
-    create_servicem8_webhook(token, callback_url=callback_url, fields=fields)
+    create_servicem8_webhook(token.access_token, callback_url=callback_url, fields=fields)
     return JsonResponse({"message":"success"})
 
