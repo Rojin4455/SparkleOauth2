@@ -1,7 +1,9 @@
 from django.contrib import admin
-from serviceM8.models import ServiceM8Log, Client, Job
+from serviceM8.models import ServiceM8Log, Client, Job, ServiceM8WebhookLog, ServiceM8Credentials
 import json
 
+admin.site.register(ServiceM8Credentials)
+admin.site.register(ServiceM8WebhookLog)
 @admin.register(ServiceM8Log)
 class ServiceM8LogAdmin(admin.ModelAdmin):
     list_display = ('timestamp', 'event_type', 'status', 'job_uuid', 'client_uuid', 'job_link_successful', 'client_link_successful')
@@ -17,4 +19,7 @@ class ServiceM8LogAdmin(admin.ModelAdmin):
         except:
             return obj.servicem8_data
     get_servicem8_data_display.short_description = "ServiceM8 Data"
+
+
+
     
