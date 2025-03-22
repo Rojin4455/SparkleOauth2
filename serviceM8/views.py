@@ -161,6 +161,8 @@ def handle_oauth(request):
 from django.http import HttpResponse, JsonResponse
 import json
 
+
+@csrf_exempt
 def servicem8_webhook(request):
     if request.method == "POST":
         ServiceM8WebhookLog.objects.create(logger="Webhook POST method triggered")
@@ -219,7 +221,7 @@ def create_servicem8_webhook(access_token, callback_url, fields=None):
     payload = {
         "object": "job",
         "callback_url": callback_url,
-        "fields": "status"
+        "fields": ["status"]
     }
     ServiceM8WebhookLog.objects.create(logger  = "create_servicem8_webhook triggered", entry_data=payload)
 
@@ -248,6 +250,6 @@ def subscribe_webhook(request):
     fields = body_data.get("fields")
     print(f"token: {token} callback_url : {callback_url}  fields: {fields}")
 
-    create_servicem8_webhook(token.access_token, callback_url=callback_url, fields=fields)
+    create_servicem8_webhook(token.access_token, callback_url=callback_url)
     return JsonResponse({"message":"success"})
 
