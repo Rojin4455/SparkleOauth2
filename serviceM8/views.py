@@ -5,7 +5,7 @@ from accounts.models import GHLAuthCredentials
 
 from urllib.parse import urlparse
 
-
+from decouple import config
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
@@ -122,7 +122,6 @@ import requests
 
 CLIENT_ID = "853518"
 CLIENT_SECRET = "f4eacb6da26d45eba89a2286f8865b4b"
-REDIRECT_URI = "http://localhost:8000/service/callback/"
 
 def handle_oauth(request):
     # Step 1: Get the 'code' from the request
@@ -138,7 +137,7 @@ def handle_oauth(request):
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
         "code": code,
-        "redirect_uri": "http://localhost:8000/service/HandleOAuth/"
+        "redirect_uri": config("SERVICEM8_REDIRECT_URI")
     }
 
     print("payload:", payload)
