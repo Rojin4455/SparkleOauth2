@@ -10,7 +10,7 @@ LOCATION_ID = "zPbyOYoNWW8AzKRkMekd"
 def map_servicem8_status_to_ghl(status):
     status_mapping = {
         "Quote": "open",
-        "Work Order": "open",
+        "Work Order": "won",
         "Completed": "won",
         "Unsuccessful": "lost"
     }
@@ -21,7 +21,7 @@ def map_servicem8_status_to_ghl(status):
 def map_servicem8_status_to_ghl_pipeline(status):
     status_mapping = {
         "Quote": "51ccc299-cdac-48bf-a7c8-aaf77fa4a797",
-        "Work Order": "5b2386b8-7bcd-41b2-879b-f1d9d04ea464",
+        "Work Order": "ee748731-1c88-4098-9a1c-a849739adf30",  # quot sent id "5b2386b8-7bcd-41b2-879b-f1d9d04ea464",
         "Completed": "ee748731-1c88-4098-9a1c-a849739adf30",
         "Unsuccessful": "84239738-ec63-4d67-bc1c-2d454e770688"
     }

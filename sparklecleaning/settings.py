@@ -158,8 +158,12 @@ from celery.schedules import crontab
 CELERY_BEAT_SCHEDULE = {
     'make-api-call-every-minute': {
         'task': 'accounts.tasks.make_api_call',
-        'schedule': crontab(hour='*/50'),
+        'schedule': crontab(minute='*/50'),
     },
+    'make-api-for-ghl': {
+        'task': 'accounts.tasks.make_api_for_ghl',
+        'schedule': crontab(hour='*/23'),  # Runs every 23 hours
+    }
 }
 
 

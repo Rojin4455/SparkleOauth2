@@ -4,124 +4,19 @@ from django.http import HttpResponse
 from accounts.models import GHLAuthCredentials
 
 from urllib.parse import urlparse
-
+import base64
 from decouple import config
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
 import threading
 import traceback
+from accounts.tasks import handle_webhook_event
 from serviceM8.models import ServiceM8Log, ServiceM8Token, ServiceM8WebhookLog
-from serviceM8.utils import fetch_servicem8_job, fetch_servicem8_client, fetch_company_contact, fetch_job_contact, get_or_create_client, get_or_create_job
-
-@csrf_exempt
-def servicem8_webhook2(request):
-    if request.method == 'POST':
-        try:
-            webhook_data = json.loads(request.body)
-            event_type = webhook_data.get('eventType')
-
-            # Log the webhook received event
-            log_entry = ServiceM8Log(status="started", event_type=event_type)
-            log_entry.set_servicem8_data(webhook_data)
-            log_entry.save()
-
-            # Respond immediately so ServiceM8 does not wait
-            threading.Thread(target=process_webhook_data, args=(webhook_data, log_entry)).start()
-            return JsonResponse({'status': 'success', 'message': 'Webhook received, processing in background'}, status=200)
-
-        except Exception as e:
-            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
-
-    return JsonResponse({'status': 'error', 'message': 'Method not allowed'}, status=405)
-
-
-def process_webhook_data(webhook_data, log_entry):
-    """Handles webhook processing asynchronously."""
-    try:
-        event_type = webhook_data.get('eventType')
-        entry_data = webhook_data.get('eventData', {})
-        if event_type == 'Webhook_Subscription' and entry_data.get('object') == 'Job':
-            entries = entry_data.get('entry', [])
-            if not entries:
-                log_entry.status = "warning"
-                log_entry.error_message = "No entries found in webhook data"
-                log_entry.save()
-                return
-            
-            job_uuid = entries[0].get('uuid')
-            log_entry.job_uuid = job_uuid
-            log_entry.save()
-
-            auth_data = webhook_data.get('rawEvent', {}).get('auth', {})
-            access_token = auth_data.get('accessToken')
-
-            if not access_token:
-                log_entry.status = "error"
-                log_entry.error_message = "Access token missing from ServiceM8"
-                log_entry.save()
-                return
-            
-            # Fetch job and client data
-            job_data = fetch_servicem8_job(job_uuid, access_token)
-            if not job_data:
-                log_entry.status = "error"
-                log_entry.error_message = "Failed to fetch job data"
-                log_entry.save()
-                return
-            
-            company_uuid = job_data.get('company_uuid')
-            if not company_uuid:
-                log_entry.status = "error"
-                log_entry.error_message = "Client details missing to create job"
-                log_entry.save()
-                return
-
-            log_entry.client_uuid = company_uuid
-            log_entry.save()
-
-            client_data = fetch_servicem8_client(company_uuid, access_token)
-            if not client_data:
-                log_entry.status = "error"
-                log_entry.error_message = "Failed to fetch client data"
-                log_entry.save()
-                return
-            
-            job_contact = fetch_job_contact(job_data.get("uuid"), access_token) or fetch_company_contact(client_data.get('uuid'), access_token)
-
-            ghl_credentials = GHLAuthCredentials.objects.first()
-            if not ghl_credentials:
-                log_entry.status = "error"
-                log_entry.error_message = "GHL authentication credentials not found"
-                log_entry.save()
-                return
-
-            ghl_token = ghl_credentials.access_token
-
-            # Process client and job creation
-            client = get_or_create_client(client_data, job_contact[-1] if job_contact else {}, ghl_token)
-            job = get_or_create_job(job_data, client, ghl_token)
-
-            log_entry.client_link_successful = True
-            log_entry.job_link_successful = True
-            log_entry.ghl_client_id = client.ghl_id
-            log_entry.ghl_job_id = job.ghl_id
-            log_entry.status = "success"
-            log_entry.save()
-
-    except Exception as e:
-        log_entry.status = "error"
-        log_entry.error_message = str(e)
-        log_entry.stack_trace = traceback.format_exc()
-        log_entry.save()
-
 
 
 import requests
 
-
-CLIENT_ID = "853518"
-CLIENT_SECRET = "f4eacb6da26d45eba89a2286f8865b4b"
 
 def handle_oauth(request):
     # Step 1: Get the 'code' from the request
@@ -134,8 +29,8 @@ def handle_oauth(request):
     token_url = "https://go.servicem8.com/oauth/access_token"
     payload = {
         "grant_type": "authorization_code",
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
+        "client_id": config("SERVICEM8_APP_ID"),
+        "client_secret": config("SERVICEM8_APP_SECRET"),
         "code": code,
         "redirect_uri": config("SERVICEM8_REDIRECT_URI")
     }
@@ -164,53 +59,122 @@ import json
 
 @csrf_exempt
 def servicem8_webhook(request):
-    if request.method == "POST":
-        ServiceM8WebhookLog.objects.create(logger="Webhook POST method triggered")
-        
-        # Check if this is a form-encoded verification request
-        if request.POST.get('mode') == 'subscribe' and 'challenge' in request.POST:
-            challenge = request.POST.get('challenge')
-            ServiceM8WebhookLog.objects.create(
-                logger="Webhook verification challenge received",
-                entry_data={"challenge": challenge}
-            )
-            # Return ONLY the challenge value, with no other content
-            return HttpResponse(challenge, content_type='text/plain')
-        
-        # If not a verification request, try to parse JSON
+    if request.method != "POST":
+        return HttpResponse("Method not allowed", status=405)
+    
+    # Log request headers
+    headers = dict(request.headers)
+    ServiceM8WebhookLog.objects.create(
+        logger="Webhook POST method triggered", 
+        entry_data={"headers": headers, "content_type": request.content_type}
+    )
+
+    # 1. Webhook verification challenge
+    if request.POST.get('mode') == 'subscribe' and 'challenge' in request.POST:
+        challenge = request.POST.get('challenge')
+        ServiceM8WebhookLog.objects.create(
+            logger="Webhook verification challenge received", 
+            entry_data={"challenge": challenge}
+        )
+        return HttpResponse(challenge, content_type='text/plain')
+
+    # 2. Handle JSON Webhooks
+    if request.content_type == "application/json":
         try:
-            # Handle regular webhook events (JSON payload)
-            data = json.loads(request.body)
-            ServiceM8WebhookLog.objects.create(logger="Webhook received data", entry_data=data)
+            data = json.loads(request.body.decode("utf-8"))
+            ServiceM8WebhookLog.objects.create(
+                logger="Webhook received JSON data", 
+                entry_data=data
+            )
+            # Fix: Pass data as a tuple by adding a comma
+            # threading.Thread(target=handle_webhook_event, args=(data,)).start()
+            handle_webhook_event.delay(data)
+            return HttpResponse("Webhook received", status=200)
+        except json.JSONDecodeError as e:
+            ServiceM8WebhookLog.objects.create(
+                logger="Webhook error - Invalid JSON", 
+                entry_data={"error": str(e), "body": request.body.decode("utf-8")}
+            )
+            return HttpResponse("Invalid JSON", status=400)
+
+    # 3. Handle Form-Encoded Webhooks (Base64 / JWT-like format)
+    elif request.content_type == "application/x-www-form-urlencoded":
+        try:
+            # Log raw form data for debugging
+            ServiceM8WebhookLog.objects.create(
+                logger="Form-encoded webhook received", 
+                entry_data={"raw_post_data": dict(request.POST)}
+            )
             
-            # Process the webhook data
-            handle_webhook_event(data)
+            # Get the first key from request.POST
+            if not request.POST:
+                return HttpResponse("Empty form data", status=200)
+                
+            encoded_payload_key = list(request.POST.keys())[0]
             
-            return HttpResponse(status=200)
+            # Decode the base64/JWT-like string
+            parts = encoded_payload_key.split(".")  # JWT format uses dots (.)
             
-        except json.JSONDecodeError:
-            ServiceM8WebhookLog.objects.create(logger="Webhook error - Invalid JSON")
-            return HttpResponse(status=200)  # Still return 200 to prevent retries
+            if len(parts) >= 2:  # It's likely a JWT-like structure
+                # Handle potential padding issues
+                padding_needed = len(parts[1]) % 4
+                if padding_needed:
+                    parts[1] += "=" * (4 - padding_needed)
+                
+                try:
+                    decoded_bytes = base64.urlsafe_b64decode(parts[1])
+                    decoded_str = decoded_bytes.decode("utf-8")
+                    data = json.loads(decoded_str)
+                    
+                    ServiceM8WebhookLog.objects.create(
+                        logger="Webhook decoded job data", 
+                        entry_data=data
+                    )
+                    # Fix: Pass data as a tuple by adding a comma
+                    # threading.Thread(target=handle_webhook_event, args=(data,)).start()
+                    handle_webhook_event.delay(data)
+
+                    return HttpResponse("Webhook processed", status=200)
+                except Exception as e:
+                    ServiceM8WebhookLog.objects.create(
+                        logger="Webhook error - JWT payload decoding failed", 
+                        entry_data={"error": str(e), "jwt_part": parts[1]}
+                    )
+                    return HttpResponse("JWT payload decoding error", status=200)
+            else:
+                # Try to process as a plain webhook
+                try:
+                    data = json.loads(encoded_payload_key)
+                    ServiceM8WebhookLog.objects.create(
+                        logger="Webhook processed as plain JSON", 
+                        entry_data=data
+                    )
+                    # threading.Thread(target=handle_webhook_event, args=(data,)).start()
+                    handle_webhook_event.delay(data)
+
+                    return HttpResponse("Webhook processed", status=200)
+                except json.JSONDecodeError:
+                    ServiceM8WebhookLog.objects.create(
+                        logger="Webhook error - Unrecognized format", 
+                        entry_data={"raw_data": encoded_payload_key[:1000]}  # Truncate if too large
+                    )
+                    return HttpResponse("Invalid webhook format", status=200)
         except Exception as e:
             ServiceM8WebhookLog.objects.create(
-                logger="Webhook error", 
-                entry_data={"error": str(e)}
+                logger="Webhook error - Processing failed", 
+                entry_data={"error": str(e), "traceback": traceback.format_exc()}
             )
-            return HttpResponse(status=200)  # Still return 200 to prevent retries
-    
-    return HttpResponse(status=405)  # Method not allowed
+            return HttpResponse("Processing error", status=200)
+
+    # 4. Handle any other content types
+    else:
+        ServiceM8WebhookLog.objects.create(
+            logger="Webhook error - Unsupported content type", 
+            entry_data={"content_type": request.content_type}
+        )
+        return HttpResponse(f"Unsupported Content-Type: {request.content_type}", status=200)
 
 
-
-    return JsonResponse({"error": "Invalid request method"}, status=405)
-def handle_webhook_event(data):
-    print("reached here event")
-    """Process the webhook event"""
-    object_type = data.get("object")
-    entries = data.get("entry", [])
-
-    for entry in entries:
-        print(f"Webhook Received: {object_type} Updated - {entry}")
 
 
 
@@ -228,7 +192,7 @@ def create_servicem8_webhook(access_token, callback_url, fields=None):
     payload = {
         "object": "job",
         "callback_url": callback_url,
-        "fields": ["status"]
+        "fields": "uuid,status,company_uuid,job_address,billing_address,job_description,work_done_description,payment_amount,quote_date,quote_sent,work_order_date"
     }
     ServiceM8WebhookLog.objects.create(logger  = "create_servicem8_webhook triggered", entry_data=payload)
 
@@ -249,7 +213,7 @@ def create_servicem8_webhook(access_token, callback_url, fields=None):
 def subscribe_webhook(request):
     token = ServiceM8Token.objects.first()
     ServiceM8WebhookLog.objects.create(logger="initial webhook subscribe triggered")
-    body_data = json.loads(request.body)  # Parse raw request body
+    body_data = json.loads(request.body)
     ServiceM8WebhookLog.objects.create(logger="subscribe webhook function data",entry_data = body_data)
 
 
@@ -259,4 +223,59 @@ def subscribe_webhook(request):
 
     create_servicem8_webhook(token.access_token, callback_url=callback_url)
     return JsonResponse({"message":"success"})
+
+
+
+# def remove_webhook():
+#     url = "https://api.servicem8.com/webhook_subscriptions"
+#     token = ServiceM8Token.objects.first()
+
+#     headers = {
+#         "Authorization": f"Bearer {token.access_token}",
+#         "accept": "application/json",
+#         "content-type": "application/x-www-form-urlencoded"
+
+#     }
+
+#     response = requests.delete(url, headers=headers)
+
+#     print(response.text)
+
+# remove_webhook()
+
+
+# def get_webhooks():
+
+#     url = "https://api.servicem8.com/webhook_subscriptions"
+#     token = ServiceM8Token.objects.first()
+
+
+#     headers = {
+#         "Authorization": f"Bearer 92185-apse2-b157be8fbcbd4a0419e21c20d8fe4a9b695c4f3e",
+#         "accept": "application/json"
+#         }
+
+#     response = requests.get(url, headers=headers)
+
+#     # print(response.text)
+#     print(response.json())
+# get_webhooks()
+
+
+def url_webhook():
+    url = "https://api.servicem8.com/api_1.0/Job/49dcdf87-3801-4f74-b328-228fcffd887d.json"
+    token = ServiceM8Token.objects.first()
+
+    headers = {
+        "Authorization": f"Bearer {token.access_token}",
+        "accept": "application/json",
+        "content-type": "application/x-www-form-urlencoded"
+
+    }
+
+    response = requests.get(url, headers=headers)
+
+    print(response.text)
+
+# url_webhook()
 

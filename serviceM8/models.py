@@ -32,17 +32,7 @@ class ServiceM8Token(models.Model):
         )
         return token
 
-class ServiceM8Credentials(models.Model):
-    company_uuid = models.CharField(max_length=36, unique=True)
-    access_token = models.CharField(max_length=255)
-    refresh_token = models.CharField(max_length=255)
-    expires_at = models.DateTimeField()
-    
-    def is_expired(self):
-        return timezone.now() >= self.expires_at
-    
-    def __str__(self):
-        return f"ServiceM8 Credentials for {self.company_uuid}"
+
     
 
 class Client(models.Model):

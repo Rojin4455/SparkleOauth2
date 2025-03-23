@@ -1,5 +1,5 @@
 from django.contrib import admin
-from serviceM8.models import ServiceM8Log, Client, Job, ServiceM8WebhookLog, ServiceM8Credentials, ServiceM8Token
+from serviceM8.models import ServiceM8Log, Client, Job, ServiceM8WebhookLog, ServiceM8Token
 import json
 
 admin.site.register(ServiceM8Token)
