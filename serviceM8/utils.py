@@ -280,8 +280,6 @@ def create_ghl_contact(client, client_data, ghl_token, job_contact):
             existing_contact = contact['contacts'][0]
             if not existing_contact.get('email'):
                 base_payload['email'] = client.email
-            if not existing_contact.get('phone'):
-                base_payload['phone'] = client.mobile
 
             print("base payload: ,", base_payload)
             
@@ -356,7 +354,6 @@ def update_ghl_contact(client,client_data, ghl_token, job_contact):
             "address1": client_data.get('address_street', ''),
             "city": client_data.get('address_city', ''),
             "state": client_data.get('address_state', ''),
-            "phone":client.mobile,
             "email":client.email,
             "postalCode": client_data.get('address_postcode', ''),
         }
