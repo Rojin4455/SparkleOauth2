@@ -28,7 +28,22 @@ def map_servicem8_status_to_ghl_pipeline(status):
 
     return status_mapping.get(status, "51ccc299-cdac-48bf-a7c8-aaf77fa4a797")
 
+def get_pipeline_stage_id_for_quote(quote_sent, quote_sent_stamp, job_is_scheduled_until_stamp):
+    new_lead_id = "51ccc299-cdac-48bf-a7c8-aaf77fa4a797"  # New Lead
+    quote_booked_id = "d417fa3f-52df-426d-895b-4b9cfb0cfabf"  # Quote Booked
+    quote_sent_id = "5b2386b8-7bcd-41b2-879b-f1d9d04ea464"  # Quote Sent
 
+    if job_is_scheduled_until_stamp == "0000-00-00 00:00:00":
+        if quote_sent and quote_sent_stamp != "0000-00-00 00:00:00":
+            return quote_sent_id  # Quote Sent
+        return new_lead_id  # New Lead
+
+    if job_is_scheduled_until_stamp != "0000-00-00 00:00:00":
+        if quote_sent and quote_sent_stamp != "0000-00-00 00:00:00":
+            return quote_sent_id  # Quote Sent
+        return quote_booked_id  # Quote Booked
+
+    return None
 
 
 def fetch_servicem8_job(job_uuid, access_token):
@@ -65,6 +80,23 @@ def fetch_servicem8_client(company_uuid, access_token):
         print(f"Error fetching client from ServiceM8: {str(e)}")
         return None
     
+
+def fetch_job_category(category_uuid, access_token):
+    try:
+        url = f"https://api.servicem8.com/api_1.0/category/{category_uuid}.json"
+
+        headers = {
+            "accept": "application/json",
+            "authorization": f"Bearer {access_token}"
+        }
+
+        response = requests.get(url, headers=headers) 
+        response.raise_for_status()
+  
+        return response.json()
+    except Exception as e:
+        print(f"Error fetching job category from ServiceM8: {str(e)}")
+        return None 
 
 def fetch_company_contact(company_id, token):
     try:
@@ -123,10 +155,10 @@ def get_or_create_client(client_data,job_contact, ghl_token):
     
     if client.ghl_id:
         print("enter here update1")
-        update_ghl_contact(client, client_data, ghl_token)
+        update_ghl_contact(client, client_data, ghl_token, job_contact)
         return client
     
-    contact_result = create_ghl_contact(client, client_data, ghl_token)
+    contact_result = create_ghl_contact(client, client_data, ghl_token, job_contact)
     print("results of contact create:",contact_result)
     if contact_result and contact_result.get("id"):
         client.ghl_id = contact_result.get("id")
@@ -170,15 +202,20 @@ def create_ghl_opportunity(job_data, client_obj, ghl_token):
         "Version": "2021-07-28"
 
     }
+    pipline_stage_id = False
+    if job_data.get("status") == "Quote":
+        pipline_stage_id = get_pipeline_stage_id_for_quote(job_data.get("quote_sent"), job_data.get("quote_sent_stamp"), job_data.get("job_is_scheduled_until_stamp"))
+
+    
     payload = {
         "pipelineId":"kSt63A9h2lw1LL1cp7Hx",
         "name": f"{client_obj.name} - #{job_data.get("generated_job_id", "New Job")}",
         "locationId":LOCATION_ID,
         "status": map_servicem8_status_to_ghl(job_data.get("status", "open")),
-        "pipelineStageId":map_servicem8_status_to_ghl_pipeline(job_data.get("status","d417fa3f-52df-426d-895b-4b9cfb0cfabf")),
+        "pipelineStageId":pipline_stage_id if pipline_stage_id else map_servicem8_status_to_ghl_pipeline(job_data.get("status","d417fa3f-52df-426d-895b-4b9cfb0cfabf")),
         "contactId": client_obj.ghl_id,
         "monetaryValue": job_data.get("total_invoice_amount", 0),
-        "source":"serviceM8",
+        "source":job_data.get("category_name", "serviceM8"),
         "customFields": [
                 {
                     "id": "b7zOencMXS3P6rgtiJqU", #street address
@@ -197,49 +234,96 @@ def create_ghl_opportunity(job_data, client_obj, ghl_token):
 
 
 
-def create_ghl_contact(client, client_data, ghl_token):
-    """Create a new contact in GoHighLevel from ServiceM8 client data"""
+def create_ghl_contact(client, client_data, ghl_token, job_contact):
+    """Create or update a contact in GoHighLevel from ServiceM8 client data"""
     try:
-        url = "https://services.leadconnectorhq.com/contacts/"
+        # Normalize phone numbers
+        mobile = f"%2B61{job_contact.get('mobile', '')}" if job_contact.get('mobile', '') else None
+        phone = f"%2B61{job_contact.get('phone', '')}" if job_contact.get('phone', '') else None
         
-        headers = {
-            'Authorization': f'Bearer {ghl_token}',
-            'Content-Type': 'application/json',
-            "Version": "2021-07-28",
-        }
+        # Initialize contact as None
+        contact = None
+
+        print("client data: --------------------------------------", client_data)
+        print("job contact data: --------------------------------------", job_contact)
         
-        name_parts = client.name.split(" ",1)
+        # Try to find existing contact by mobile or phone
+        if mobile:
+            contact = get_ghl_contacts(LOCATION_ID, mobile, ghl_token)
+        if contact and not contact.get('contacts') and phone:
+            contact = get_ghl_contacts(LOCATION_ID, phone, ghl_token)
+        
+        # Prepare name parts
+        name_parts = client.name.split(" ", 1)
         full_name = client.name
         first_name = name_parts[0] if name_parts else ""
         last_name = name_parts[1] if len(name_parts) > 1 else ""
         
-        payload = {
-            "locationId": LOCATION_ID,
-            "name":full_name,
-            "firstName":first_name,
+        # Prepare base payload
+        base_payload = {
+            "name": full_name,
+            "firstName": first_name,
             "lastName": last_name,
-            "phone":client.mobile,
-            "email":client.email,
             "address1": client_data.get('address_street', ''),
-            "source": "ServiceM8 Integration",
-            "tags": ["ServiceM8"],
+            "tags": ["ServiceM8"]
         }
-
+        if client_data.get("category_name"):
+            base_payload["source"] = client_data.get("category_name")
+        
+        # Determine if this is an update or new contact creation
+        if contact and contact.get('contacts'):
+            # Contact exists - prepare for update
+            contact_id = contact['contacts'][0].get('id')
+            url = f"https://services.leadconnectorhq.com/contacts/{contact_id}"
             
-        response = requests.post(url, headers=headers, json=payload,)
-        response.raise_for_status()        
-        return response.json().get('contact')
-    except requests.exceptions.HTTPError as e:
-        print(f"Error creating contact in GoHighLevel: {e}")
-        if hasattr(e.response, 'text'):
-            print(f"Error details: {e.response.text}")
-        print(f"error something: ", e)
-        raise
-    except Exception as e:
-        print(f"Error creating contact in GoHighLevel: {e}")
-        raise
+            # Add email and phone only if not already present
+            existing_contact = contact['contacts'][0]
+            if not existing_contact.get('email'):
+                base_payload['email'] = client.email
+            if not existing_contact.get('phone'):
+                base_payload['phone'] = client.mobile
 
-def update_ghl_contact(client,client_data, ghl_token):
+            print("base payload: ,", base_payload)
+            
+            # Use PUT for update
+            response = requests.put(url, 
+                headers={
+                    'Authorization': f'Bearer {ghl_token}',
+                    'Content-Type': 'application/json',
+                    "Version": "2021-07-28",
+                }, 
+                json=base_payload
+            )
+        else:
+            # New contact creation
+            url = "https://services.leadconnectorhq.com/contacts/"
+            base_payload.update({
+                "phone": client.mobile,
+                "email": client.email,
+                "locationId": LOCATION_ID
+
+            })
+            
+            # Use POST for new contact
+            response = requests.post(url, 
+                headers={
+                    'Authorization': f'Bearer {ghl_token}',
+                    'Content-Type': 'application/json',
+                    "Version": "2021-07-28",
+                }, 
+                json=base_payload
+            )
+        
+        # Check response
+        response.raise_for_status()
+        return response.json().get('contact')
+    
+    except requests.exceptions.RequestException as e:
+        print(f"Error creating/updating contact: {e}")
+        return None
+
+
+def update_ghl_contact(client,client_data, ghl_token, job_contact):
     """Update existing contact in GoHighLevel with ServiceM8 client data"""
     try:
         url = f"https://services.leadconnectorhq.com/contacts/{client.ghl_id}"
@@ -249,6 +333,16 @@ def update_ghl_contact(client,client_data, ghl_token):
             "Version": "2021-07-28",
 
         }
+
+        # if job_contact.get("mobile",""):
+        #     contact1 = get_ghl_contacts(LOCATION_ID, f"%2B61{job_contact.get("mobile")}", ghl_token)
+        # if job_contact.get("phone",""):
+        #     contact2 = get_ghl_contacts(LOCATION_ID, f"%2B61{job_contact.get("phone")}", ghl_token)
+        # contact_id = False
+        # if contact2 or contact1:
+        #     contact_id = contact1["contacts"] or contact2["contacts"]
+
+        # print("existing contact id from update contact: ", contact_id)
 
         name_parts = client.name.split(" ",1)
         full_name = client.name
@@ -295,14 +389,18 @@ def update_ghl_opportunity(opportunity_id, job_data, client_obj, ghl_token):
         "Version": "2021-07-28"
 
     }
+    pipline_stage_id = False
+    if job_data.get("status") == "Quote":
+        pipline_stage_id = get_pipeline_stage_id_for_quote(job_data.get("quote_sent"), job_data.get("quote_sent_stamp"), job_data.get("job_is_scheduled_until_stamp"))
     
     payload = {
         "pipelineId": "kSt63A9h2lw1LL1cp7Hx",
         "name": f"{client_obj.name} - #{job_data.get("generated_job_id", "Updated Job")}",
         "status": map_servicem8_status_to_ghl(job_data.get("status", "open")),
-        "pipelineStageId":map_servicem8_status_to_ghl_pipeline(job_data.get("status","d417fa3f-52df-426d-895b-4b9cfb0cfabf")),
+        "pipelineStageId":pipline_stage_id if pipline_stage_id else map_servicem8_status_to_ghl_pipeline(job_data.get("status","d417fa3f-52df-426d-895b-4b9cfb0cfabf")),
         "contactId": client_obj.ghl_id,
         "monetaryValue": job_data.get("total_invoice_amount", 0),
+        "source":job_data.get("category_name", "serviceM8"),
         "customFields": [
                 {
                     "id": "b7zOencMXS3P6rgtiJqU", #street address
@@ -330,3 +428,23 @@ def update_ghl_opportunity(opportunity_id, job_data, client_obj, ghl_token):
 
 
 
+
+
+def get_ghl_contacts(location_id, phone_number, access_token):
+    print("ph number ph number",phone_number)
+    url = f"https://services.leadconnectorhq.com/contacts/?locationId={location_id}&query={phone_number}"
+    
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {access_token}",
+        "Version": "2021-07-28"
+    }
+    
+    response = requests.get(url, headers=headers)
+
+    print("response: ", response.json())
+    
+    if response.status_code == 200:
+        return response.json()  # Return JSON response if successful
+    else:
+        return {"error": response.status_code, "message": response.text}

@@ -6,7 +6,7 @@ from django.conf import settings
 from datetime import datetime
 from serviceM8.models import ServiceM8Token
 from decouple import config
-from serviceM8.utils import fetch_servicem8_job, fetch_servicem8_client, fetch_company_contact, fetch_job_contact, get_or_create_client, get_or_create_job
+from serviceM8.utils import fetch_servicem8_job, fetch_servicem8_client,fetch_job_category, get_or_create_client, get_or_create_job, fetch_job_contact, fetch_company_contact
 
 
 @shared_task
@@ -82,9 +82,13 @@ def make_api_for_ghl():
     retry_backoff=True,
 )
 def handle_webhook_event(self,data):
-    print("Reached here event")
-    print("Webhook data:", data)
+    # print("Reached here event")
+    # print("Webhook data:", data)
     uuid = None
+    print("data:-------- ", data)
+
+    
+
     
     # Extract UUID from different possible webhook data structures
     if "entry" in data and isinstance(data["entry"], list) and len(data["entry"]) > 0:
@@ -99,7 +103,6 @@ def handle_webhook_event(self,data):
         print("No valid UUID found in webhook data")
         return {"status": "error", "message": "No valid UUID found"}
         
-    # Get ServiceM8 token
     try:
         serviceM8token = ServiceM8Token.objects.first()
         if not serviceM8token or not serviceM8token.access_token:
@@ -109,19 +112,27 @@ def handle_webhook_event(self,data):
         print(f"Error retrieving ServiceM8 token: {str(e)}")
         return {"status": "error", "message": f"Token error: {str(e)}"}
     
+        
+    
+    
+    
+    # Get company UUID and fetch client data
     # Fetch job data
     job_data = fetch_servicem8_job(uuid, serviceM8token.access_token)
     if not job_data:
         print("Failed to fetch job data from ServiceM8")
         return {"status": "error", "message": "Failed to fetch job data"}
-    
-    # Get company UUID and fetch client data
+
     company_uuid = job_data.get('company_uuid')
     if not company_uuid:
         print("No company UUID found in job data")
         return {"status": "error", "message": "No company UUID in job data"}
-        
+    print("Job Data: ", job_data)
+
+            
+
     client_data = fetch_servicem8_client(company_uuid, serviceM8token.access_token)
+    print("client:data", client_data)
     if not client_data:
         print("Failed to fetch client data from ServiceM8")
         return {"status": "error", "message": "Failed to fetch client data"}
@@ -145,6 +156,12 @@ def handle_webhook_event(self,data):
     
     # Extract contact info or use empty dict if no contacts found
     contact_info = job_contact_data[-1] if job_contact_data and isinstance(job_contact_data, list) and len(job_contact_data) > 0 else {}
+
+    if job_data.get("category_uuid"):
+        job_category_data = fetch_job_category(job_data.get("category_uuid"), serviceM8token.access_token)
+        if job_category_data:
+            job_data["category_name"] = job_category_data.get("name")
+            client_data['category_name'] = job_category_data.get("name")
     
     # Create/update client and job
     try:

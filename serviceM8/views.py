@@ -102,7 +102,7 @@ def servicem8_webhook(request):
         try:
             # Log raw form data for debugging
             ServiceM8WebhookLog.objects.create(
-                logger="Form-encoded webhook received", 
+                logger="Form-encoded webhook received",
                 entry_data={"raw_post_data": dict(request.POST)}
             )
             
@@ -192,7 +192,7 @@ def create_servicem8_webhook(access_token, callback_url, fields=None):
     payload = {
         "object": "job",
         "callback_url": callback_url,
-        "fields": "uuid,status,company_uuid,job_address,billing_address,job_description,work_done_description,payment_amount,quote_date,quote_sent,work_order_date"
+        "fields": "uuid,status,company_uuid,job_address,billing_address,job_description,work_done_description,payment_amount,quote_date,quote_sent,work_order_date,job_is_scheduled_until_stamp,quote_sent_stamp,category_uuid,total_invoice_amount"
     }
     ServiceM8WebhookLog.objects.create(logger  = "create_servicem8_webhook triggered", entry_data=payload)
 
@@ -226,41 +226,50 @@ def subscribe_webhook(request):
 
 
 
-# def remove_webhook():
-#     url = "https://api.servicem8.com/webhook_subscriptions"
-#     token = ServiceM8Token.objects.first()
+def remove_webhook(request):
+    url = "https://api.servicem8.com/webhook_subscriptions"
+    token = ServiceM8Token.objects.first()
 
-#     headers = {
-#         "Authorization": f"Bearer {token.access_token}",
-#         "accept": "application/json",
-#         "content-type": "application/x-www-form-urlencoded"
+    headers = {
+        "Authorization": f"Bearer {token.access_token}",
+        "accept": "application/json",
+        "content-type": "application/x-www-form-urlencoded"
 
-#     }
+    }
 
-#     response = requests.delete(url, headers=headers)
+    response = requests.delete(url, headers=headers)
 
-#     print(response.text)
+    try:
+        response = requests.delete(url, headers=headers)
+        response.raise_for_status()
 
-# remove_webhook()
-
-
-# def get_webhooks():
-
-#     url = "https://api.servicem8.com/webhook_subscriptions"
-#     token = ServiceM8Token.objects.first()
+        return JsonResponse(response.json(), safe=False)
+    except requests.exceptions.RequestException as e:
+        return JsonResponse({"error": "Failed to remove webhook", "details": str(e)}, status=500)
 
 
-#     headers = {
-#         "Authorization": f"Bearer 92185-apse2-b157be8fbcbd4a0419e21c20d8fe4a9b695c4f3e",
-#         "accept": "application/json"
-#         }
 
-#     response = requests.get(url, headers=headers)
 
-#     # print(response.text)
-#     print(response.json())
-# get_webhooks()
+def get_webhooks(request):
 
+    url = "https://api.servicem8.com/webhook_subscriptions"
+    token = ServiceM8Token.objects.first()
+
+
+    headers = {
+        "Authorization": f"Bearer {token.access_token}",
+        "accept": "application/json"
+        }
+
+    response = requests.get(url, headers=headers)
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+
+        return JsonResponse(response.json(), safe=False)
+
+    except requests.exceptions.RequestException as e:
+        return JsonResponse({"error": "Failed to fetch webhooks", "details": str(e)}, status=500)
 
 def url_webhook():
     url = "https://api.servicem8.com/api_1.0/Job/49dcdf87-3801-4f74-b328-228fcffd887d.json"
@@ -277,5 +286,4 @@ def url_webhook():
 
     print(response.text)
 
-# url_webhook()
 

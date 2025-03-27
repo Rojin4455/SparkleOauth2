@@ -162,7 +162,7 @@ CELERY_BEAT_SCHEDULE = {
     },
     'make-api-for-ghl': {
         'task': 'accounts.tasks.make_api_for_ghl',
-        'schedule': crontab(hour='*/23'),  # Runs every 23 hours
+        'schedule': crontab(hour='*/23'),
     }
 }
 
