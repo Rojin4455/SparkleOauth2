@@ -236,6 +236,7 @@ def create_ghl_opportunity(job_data, client_obj, ghl_token):
 
 def create_ghl_contact(client, client_data, ghl_token, job_contact):
     """Create or update a contact in GoHighLevel from ServiceM8 client data"""
+    from datetime import datetime
     try:
         # Normalize phone numbers
         mobile = f"%2B61{job_contact.get('mobile', '')}" if job_contact.get('mobile', '') else None
@@ -258,6 +259,8 @@ def create_ghl_contact(client, client_data, ghl_token, job_contact):
         full_name = client.name
         first_name = name_parts[0] if name_parts else ""
         last_name = name_parts[1] if len(name_parts) > 1 else ""
+
+
         
         # Prepare base payload
         base_payload = {
@@ -267,6 +270,17 @@ def create_ghl_contact(client, client_data, ghl_token, job_contact):
             "address1": client_data.get('address_street', ''),
             "tags": ["ServiceM8"]
         }
+
+        if client_data.get("job_is_scheduled_until_stamp") != "0000-00-00 00:00:00":
+            job_date = datetime.strptime(client_data["job_is_scheduled_until_stamp"], "%Y-%m-%d %H:%M:%S")
+            formatted_date = job_date.strftime("%d-%b-%Y %I:%M %p").upper()
+
+            
+            base_payload["customFields"] =  [{
+                "id": "3Fd9Deng6jrRwuCPSfd0",
+                "field_value": formatted_date
+            }]
+        
         if client_data.get("category_name"):
             base_payload["source"] = client_data.get("category_name")
         
@@ -322,6 +336,8 @@ def create_ghl_contact(client, client_data, ghl_token, job_contact):
 
 
 def update_ghl_contact(client,client_data, ghl_token, job_contact):
+    from datetime import datetime
+
     """Update existing contact in GoHighLevel with ServiceM8 client data"""
     try:
         url = f"https://services.leadconnectorhq.com/contacts/{client.ghl_id}"
@@ -357,8 +373,21 @@ def update_ghl_contact(client,client_data, ghl_token, job_contact):
             "email":client.email,
             "postalCode": client_data.get('address_postcode', ''),
         }
+
+        if client_data.get("job_is_scheduled_until_stamp") != "0000-00-00 00:00:00":
+            job_date = datetime.strptime(client_data["job_is_scheduled_until_stamp"], "%Y-%m-%d %H:%M:%S")
+            formatted_date = job_date.strftime("%d-%b-%Y %I:%M %p").upper()
+
+            
+            payload["customFields"] =  [{
+                "id": "3Fd9Deng6jrRwuCPSfd0",
+                "field_value": formatted_date
+            }]
+        
         
         payload["tags"] = ["ServiceM8"]
+
+    
 
         print("ghl updata contact details:------------------ ", payload)
         

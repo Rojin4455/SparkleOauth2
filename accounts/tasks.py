@@ -127,7 +127,6 @@ def handle_webhook_event(self,data):
     if not company_uuid:
         print("No company UUID found in job data")
         return {"status": "error", "message": "No company UUID in job data"}
-    print("Job Data: ", job_data)
 
             
 
@@ -162,7 +161,10 @@ def handle_webhook_event(self,data):
         if job_category_data:
             job_data["category_name"] = job_category_data.get("name")
             client_data['category_name'] = job_category_data.get("name")
+    client_data['job_is_scheduled_until_stamp'] = job_data.get("job_is_scheduled_until_stamp")
+
     
+    print("job_data:  -----", job_data)
     # Create/update client and job
     try:
         client = get_or_create_client(client_data, contact_info, ghl_token)
