@@ -232,15 +232,32 @@ def create_ghl_opportunity(job_data, client_obj, ghl_token):
         return response.json().get("opportunity",[])
     return None
 
+import re
 
+def format_phone_number(number):
+    if not number:
+        return None
+
+    # Remove spaces and non-numeric characters (except +)
+    number = re.sub(r"[^\d+]", "", number)
+
+    # If number starts with "+61", strip it and keep only the next 9 digits
+    if number.startswith("+61"):
+        number = number[3:]  # Remove "+61"
+    
+    # Extract only the last 9 digits
+    number = number[-9:]
+
+    # Prefix with "+61"
+    return f"%2B61{number}"
 
 def create_ghl_contact(client, client_data, ghl_token, job_contact):
     """Create or update a contact in GoHighLevel from ServiceM8 client data"""
     from datetime import datetime
     try:
         # Normalize phone numbers
-        mobile = f"%2B61{job_contact.get('mobile', '')}" if job_contact.get('mobile', '') else None
-        phone = f"%2B61{job_contact.get('phone', '')}" if job_contact.get('phone', '') else None
+        mobile = format_phone_number(job_contact.get("mobile",""))
+        phone = format_phone_number(job_contact.get("phone",""))
         
         # Initialize contact as None
         contact = None
