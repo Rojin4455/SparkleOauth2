@@ -166,13 +166,13 @@ def handle_webhook_event(self,data):
     
     print("job_data:  -----", job_data)
 
-    comparison_date = datetime.strptime("2025-03-18", "%Y-%m-%d")
+    comparison_date = datetime.strptime("2025-03-10", "%Y-%m-%d")
     job_date = datetime.strptime(job_data.get("date", "0000-00-00 00:00:00"), "%Y-%m-%d %H:%M:%S")
 
     try:
 
-        if job_date > comparison_date and job_data.get("category_name","") != "Repeated Customer":
-            print("Job date is after 2025-03-18")
+        if job_date > comparison_date and job_data.get("category_name","") != "Repeated Customer" and "Re engage" not in job_data.get("job_description",""):
+            print("Job date is after 2025-03-10")
             client = get_or_create_client(client_data, contact_info, ghl_token)
             job = get_or_create_job(job_data, client, ghl_token)
             return {"status": "success", "job_id": job.uuid, "client_id": client.uuid}
