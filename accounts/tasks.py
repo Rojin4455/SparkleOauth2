@@ -165,11 +165,20 @@ def handle_webhook_event(self,data):
 
     
     print("job_data:  -----", job_data)
-    # Create/update client and job
+
+    comparison_date = datetime.strptime("2025-03-18", "%Y-%m-%d")
+    job_date = datetime.strptime(job_data.get("date", "0000-00-00 00:00:00"), "%Y-%m-%d %H:%M:%S")
+
     try:
-        client = get_or_create_client(client_data, contact_info, ghl_token)
-        job = get_or_create_job(job_data, client, ghl_token)
-        return {"status": "success", "job_id": job.uuid, "client_id": client.uuid}
+
+        if job_date > comparison_date and job_data.get("category_name","") != "Repeated Customer":
+            print("Job date is after 2025-03-18")
+            client = get_or_create_client(client_data, contact_info, ghl_token)
+            job = get_or_create_job(job_data, client, ghl_token)
+            return {"status": "success", "job_id": job.uuid, "client_id": client.uuid}
+        else:
+            print("Job date is on or before 2025-03-18")
+            return {"status": "error", "message": "Job date is on or before 2025-03-18"}
     except Exception as e:
         print(f"Error processing client/job data: {str(e)}")
         return {"status": "error", "message": f"Processing error: {str(e)}"}
