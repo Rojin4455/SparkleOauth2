@@ -69,8 +69,8 @@ def get_pipeline_stage_id_quote_for_reactivaton(quote_sent, quote_sent_stamp, jo
         return new_lead_id  # New Lead
 
     if job_is_scheduled_until_stamp != "0000-00-00 00:00:00":
-        if quote_sent and quote_sent_stamp != "0000-00-00 00:00:00":
-            return quote_sent_id  # Quote Sent
+        # if quote_sent and quote_sent_stamp != "0000-00-00 00:00:00":
+        #     return quote_sent_id  # Quote Sent
         return quote_booked_id  # Quote Booked
 
     return None
@@ -262,8 +262,8 @@ def create_ghl_opportunity(job_data, client_obj, ghl_token):
                 )
             else:
                 pipeline_stage_id = get_pipeline_stage_id_for_quote(
-                    job_data.get("quote_sent"), 
-                    job_data.get("quote_sent_stamp"), 
+                    job_data.get("quote_sent"),
+                    job_data.get("quote_sent_stamp"),
                     job_data.get("job_is_scheduled_until_stamp")
                 )
         else:
