@@ -6,7 +6,7 @@ from django.conf import settings
 from datetime import datetime
 from serviceM8.models import ServiceM8Token
 from decouple import config
-from serviceM8.utils import fetch_servicem8_job, fetch_servicem8_client,fetch_job_category, get_or_create_client, get_or_create_job, fetch_job_contact, fetch_company_contact
+from serviceM8.utils import fetch_servicem8_job, fetch_servicem8_client,fetch_job_category, get_or_create_client, get_or_create_job, fetch_job_contact, fetch_company_contact, update_or_create_appointment
 
 
 @shared_task
@@ -93,6 +93,7 @@ def handle_webhook_event(self,data):
     # Extract UUID from different possible webhook data structures
     if "entry" in data and isinstance(data["entry"], list) and len(data["entry"]) > 0:
         uuid = data["entry"][0].get("uuid")
+        changed_fieids = data["entry"][0].get("changed_fields")
             
     if not uuid and "eventArgs" in data and "entry" in data["eventArgs"]:
         entry_list = data["eventArgs"]["entry"]
@@ -156,7 +157,7 @@ def handle_webhook_event(self,data):
     # Extract contact info or use empty dict if no contacts found
     contact_info = job_contact_data[-1] if job_contact_data and isinstance(job_contact_data, list) and len(job_contact_data) > 0 else {}
 
-    if job_data.get("category_uuid"):
+    if job_data.get("category_uuid") and "category_uuid" in changed_fieids:
         job_category_data = fetch_job_category(job_data.get("category_uuid"), serviceM8token.access_token)
         if job_category_data:
             job_data["category_name"] = job_category_data.get("name")
@@ -166,19 +167,23 @@ def handle_webhook_event(self,data):
     
     print("job_data:  -----", job_data)
 
-    comparison_date = datetime.strptime("2025-03-10", "%Y-%m-%d")
-    job_date = datetime.strptime(job_data.get("date", "0000-00-00 00:00:00"), "%Y-%m-%d %H:%M:%S")
 
     try:
 
-        if job_date > comparison_date and job_data.get("category_name","") != "Repeated Customer" and "Re engage" not in job_data.get("job_description",""):
-            print("Job date is after 2025-03-10")
-            client = get_or_create_client(client_data, contact_info, ghl_token)
+        # if job_date > comparison_date and job_data.get("category_name","") != "Repeated Customer" and "Re engage" not in job_data.get("job_description",""):
+        print("Job date is after 2025-03-10")
+        client = get_or_create_client(client_data, contact_info, ghl_token)
+        if client and "client reactivation" in client.tags:
+            print("craete job in reactivation pipeline")
+            print("client: ", client)
+        if client:
             job = get_or_create_job(job_data, client, ghl_token)
-            return {"status": "success", "job_id": job.uuid, "client_id": client.uuid}
-        else:
-            print("Job date is on or before 2025-03-18")
-            return {"status": "error", "message": "Job date is on or before 2025-03-18"}
+        if "job_is_scheduled_until_stamp" in changed_fieids:
+            job_data["contact_id"] = client.ghl_id
+            appointment = update_or_create_appointment(job_data=job_data)
+        # return {"status": "success", "job_id": job.uuid, "client_id": client.uuid}
+        return
+
     except Exception as e:
         print(f"Error processing client/job data: {str(e)}")
         return {"status": "error", "message": f"Processing error: {str(e)}"}

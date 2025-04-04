@@ -192,7 +192,7 @@ def create_servicem8_webhook(access_token, callback_url, fields=None):
     payload = {
         "object": "job",
         "callback_url": callback_url,
-        "fields": "uuid,status,company_uuid,job_address,billing_address,job_description,work_done_description,payment_amount,quote_date,quote_sent,work_order_date,job_is_scheduled_until_stamp,quote_sent_stamp,category_uuid,total_invoice_amount"
+        "fields": "uuid,status,job_address,billing_address,job_description,work_done_description,payment_amount,quote_date,quote_sent,work_order_date,job_is_scheduled_until_stamp,quote_sent_stamp,category_uuid,total_invoice_amount"
     }
     ServiceM8WebhookLog.objects.create(logger  = "create_servicem8_webhook triggered", entry_data=payload)
 

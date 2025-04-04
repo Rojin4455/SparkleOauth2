@@ -1,9 +1,12 @@
 from django.contrib import admin
-from serviceM8.models import ServiceM8Log, Client, Job, ServiceM8WebhookLog, ServiceM8Token
+from serviceM8.models import ServiceM8Log, Client, Job, ServiceM8WebhookLog, ServiceM8Token,ServiceM8WebhookLog, JobAppointment
 import json
 
 admin.site.register(ServiceM8Token)
+admin.site.register(Client)
+admin.site.register(Job)
 admin.site.register(ServiceM8WebhookLog)
+admin.site.register(JobAppointment)
 @admin.register(ServiceM8Log)
 class ServiceM8LogAdmin(admin.ModelAdmin):
     list_display = ('timestamp', 'event_type', 'status', 'job_uuid', 'client_uuid', 'job_link_successful', 'client_link_successful')

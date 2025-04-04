@@ -42,7 +42,10 @@ class Client(models.Model):
     email = models.EmailField(null=True, blank=True)
     mobile = models.CharField(max_length=25, null=True, blank=True)
     address = models.TextField(null=True, blank=True)
+    tags = models.JSONField(default=list, blank=True, null=True)
 
+    def __str__(self):
+        return f"{self.email}"
 
 
 class Job(models.Model):
@@ -52,7 +55,18 @@ class Job(models.Model):
     client = models.ForeignKey(Client, related_name='job', on_delete=models.SET_NULL,  null=True, blank=True)
     job_address = models.TextField(null=True, blank=True)
 
+    def __str__(self):
+        return f"job address - {self.job_address} for client {self.client if self.client.email else "None"}"
 
+class JobAppointment(models.Model):
+    uuid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    ghl_id = models.CharField(null=True, blank=True)
+    job = models.ForeignKey(Job, related_name="appointments", on_delete=models.CASCADE, null=True, blank=True)
+    start_date = models.DateTimeField(null=True, blank=True)
+    end_date = models.DateTimeField(null=True, blank=True)
+    
+    def __str__(self):
+        return f"JobAppointment {self.uuid} - Job {self.job.uuid if self.job else 'None'}"
 
 class ServiceM8Log(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)

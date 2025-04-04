@@ -14,7 +14,7 @@ GHL_REDIRECTED_URI = config("GHL_REDIRECTED_URI")
 TOKEN_URL = "https://services.leadconnectorhq.com/oauth/token"
 
 
-SCOPE = "contacts.readonly%20contacts.write%20opportunities.readonly%20opportunities.write%20locations/customValues.readonly%20locations/customValues.write"
+SCOPE = "contacts.readonly%20contacts.write%20opportunities.readonly%20opportunities.write%20locations/customValues.readonly%20locations/customValues.write%20calendars.readonly%20calendars.write%20calendars/events.readonly%20calendars/events.write"
 LOCATION_ID = "zPbyOYoNWW8AzKRkMekd"
 
 
