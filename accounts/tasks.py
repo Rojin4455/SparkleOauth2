@@ -6,8 +6,8 @@ from django.conf import settings
 from datetime import datetime
 from serviceM8.models import ServiceM8Token
 from decouple import config
-from serviceM8.utils import fetch_servicem8_job, fetch_servicem8_client,fetch_job_category, get_or_create_client, get_or_create_job, fetch_job_contact, fetch_company_contact, update_or_create_appointment
-
+from serviceM8.utils import get_or_create_client, get_or_create_job, update_or_create_appointment
+from serviceM8.services import fetch_servicem8_job, fetch_servicem8_client, fetch_job_category, fetch_company_contact, fetch_job_contact
 
 @shared_task
 def make_api_call():
@@ -88,7 +88,7 @@ def handle_webhook_event(self,data):
     print("data:-------- ", data)
 
     
-
+    changed_fieids = []
     
     # Extract UUID from different possible webhook data structures
     if "entry" in data and isinstance(data["entry"], list) and len(data["entry"]) > 0:
@@ -99,6 +99,7 @@ def handle_webhook_event(self,data):
         entry_list = data["eventArgs"]["entry"]
         if isinstance(entry_list, list) and len(entry_list) > 0:
             uuid = entry_list[0].get("uuid")
+            changed_fieids = entry_list[0].get("changed_fields")
             
     if not uuid:
         print("No valid UUID found in webhook data")

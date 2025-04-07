@@ -1,20 +1,14 @@
 
 from django.http import HttpResponse
-
-from accounts.models import GHLAuthCredentials
-
 from urllib.parse import urlparse
 import base64
 from decouple import config
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
-import threading
 import traceback
 from accounts.tasks import handle_webhook_event
 from serviceM8.models import ServiceM8Log, ServiceM8Token, ServiceM8WebhookLog
-
-
 import requests
 
 
