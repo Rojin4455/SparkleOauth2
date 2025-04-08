@@ -162,3 +162,18 @@ def get_job_activity(token, uuid):
     except (IndexError, ValueError, KeyError) as e:
         print(f"Error processing job activity response: {str(e)}")
         return None
+    
+
+
+def get_staff_details(token, uuid):
+
+    url = f"https://api.servicem8.com/api_1.0/staff/{uuid}.json"
+
+    headers = {
+        "accept": "application/json",
+        "authorization": f"Bearer {token}"
+    }
+
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json()

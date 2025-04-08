@@ -98,3 +98,17 @@ def format_datetime(datetime_obj, timezone_offset="+11:00"):
     except ValueError as e:
         print(f"Error formatting datetime: {str(e)}")
        
+
+
+
+# Function to get GHL contact ID by UUID
+def get_ghl_id_by_uuid(user_uuid):
+    uuid_to_ghl = {
+    "938a4bc9-ee0a-4382-b9e4-229019b400cb": "4q6V9cppijdsjzrLyDOu",  # Nick
+    "5642bafd-d2a1-404a-af2c-20178310a69b": "MPtQvLQmhq0HHCz9492d",  # Antonio
+    "f20b8b22-20fa-4b0b-b740-2275c58f871b": "qgulhaNuualv53CscFox",  # Ramses
+    "d8924764-b277-4200-81ab-2266edde371b": "yutodLOpS2yMt7q4ntLD",  # Santhosh
+    "0c7c29ed-617b-4d60-9545-20188119ee0b": "0qQi4zcCXxqowZjWszKE",  # Simon
+    }
+    
+    return uuid_to_ghl.get(user_uuid)

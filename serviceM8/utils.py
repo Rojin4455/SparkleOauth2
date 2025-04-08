@@ -2,7 +2,7 @@ import requests
 from serviceM8.models import Job, Client, ServiceM8Token, JobAppointment
 from accounts.models import GHLAuthCredentials
 from serviceM8.services import get_opportunity, get_ghl_contacts, get_job_activity
-from serviceM8.helpers import map_servicem8_status_to_ghl, map_servicem8_status_to_ghl_pipeline, map_servicem8_status_to_ghl_pipeline_for_reactivation, get_pipeline_stage_id_for_quote, get_pipeline_stage_id_quote_for_reactivaton, format_phone_number, format_datetime
+from serviceM8.helpers import map_servicem8_status_to_ghl, get_ghl_id_by_uuid,map_servicem8_status_to_ghl_pipeline, map_servicem8_status_to_ghl_pipeline_for_reactivation, get_pipeline_stage_id_for_quote, get_pipeline_stage_id_quote_for_reactivaton, format_phone_number, format_datetime
 
 LOCATION_ID = "zPbyOYoNWW8AzKRkMekd"
 
@@ -93,33 +93,32 @@ def create_ghl_opportunity(job_data, client_obj, ghl_token):
             "Version": "2021-07-28"
         }
         
-        is_reactivation = "client reactivation" in client_obj.tags
-        pipeline_id = "hoY2wWsMyzR1tzX6kXbY" if is_reactivation else "kSt63A9h2lw1LL1cp7Hx"
+        pipeline_id = "kSt63A9h2lw1LL1cp7Hx"
         
         pipeline_stage_id = None
         status = job_data.get("status")
         
         if status == "Quote":
-            if is_reactivation:
-                pipeline_stage_id = get_pipeline_stage_id_quote_for_reactivaton(
-                    job_data.get("quote_sent"),
-                    job_data.get("quote_sent_stamp"),
-                    job_data.get("job_is_scheduled_until_stamp")
-                )
-            else:
-                pipeline_stage_id = get_pipeline_stage_id_for_quote(
-                    job_data.get("quote_sent"),
-                    job_data.get("quote_sent_stamp"),
-                    job_data.get("job_is_scheduled_until_stamp")
-                )
+            # if is_reactivation:
+            #     pipeline_stage_id = get_pipeline_stage_id_quote_for_reactivaton(
+            #         job_data.get("quote_sent"),
+            #         job_data.get("quote_sent_stamp"),
+            #         job_data.get("job_is_scheduled_until_stamp")
+            #     )
+            # else:
+            pipeline_stage_id = get_pipeline_stage_id_for_quote(
+                job_data.get("quote_sent"),
+                job_data.get("quote_sent_stamp"),
+                job_data.get("job_is_scheduled_until_stamp")
+            )
         else:
-            default_status = "3a8236e9-07f8-4d8c-8782-6ec6f8e71a12" if is_reactivation else "d417fa3f-52df-426d-895b-4b9cfb0cfabf"
+            default_status = "d417fa3f-52df-426d-895b-4b9cfb0cfabf"
             job_status = job_data.get("status", default_status)
             
-            if is_reactivation:
-                pipeline_stage_id = map_servicem8_status_to_ghl_pipeline_for_reactivation(job_status)
-            else:
-                pipeline_stage_id = map_servicem8_status_to_ghl_pipeline(job_status)
+            # if is_reactivation:
+            #     pipeline_stage_id = map_servicem8_status_to_ghl_pipeline_for_reactivation(job_status)
+            # else:
+            pipeline_stage_id = map_servicem8_status_to_ghl_pipeline(job_status)
         
         payload = {
             "name": f"{client_obj.name} - #{job_data.get('generated_job_id', 'New Job')}",
@@ -406,35 +405,32 @@ def update_ghl_opportunity(opportunity_id, job_data, client_obj, ghl_token):
             return None
             
         # Determine pipeline details
-        is_reactivation = "client reactivation" in client_obj.tags
-        pipeline_id = "hoY2wWsMyzR1tzX6kXbY" if is_reactivation else "kSt63A9h2lw1LL1cp7Hx"
+        # is_reactivation = "client reactivation" in client_obj.tags
+        pipeline_id = "kSt63A9h2lw1LL1cp7Hx"
         
         # Determine pipeline stage ID based on job status and client tags
         pipeline_stage_id = None
         status = job_data.get("status")
         
         if status == "Quote":
-            if is_reactivation:
-                pipeline_stage_id = get_pipeline_stage_id_quote_for_reactivaton(
-                    job_data.get("quote_sent"),
-                    job_data.get("quote_sent_stamp"),
-                    job_data.get("job_is_scheduled_until_stamp")
-                )
-            else:
-                pipeline_stage_id = get_pipeline_stage_id_for_quote(
-                    job_data.get("quote_sent"),
-                    job_data.get("quote_sent_stamp"),
-                    job_data.get("job_is_scheduled_until_stamp")
-                )
+            # if is_reactivation:
+            #     pipeline_stage_id = get_pipeline_stage_id_quote_for_reactivaton(
+            #         job_data.get("quote_sent"),
+            #         job_data.get("quote_sent_stamp"),
+            #         job_data.get("job_is_scheduled_until_stamp")
+            #     )
+            # else:
+            pipeline_stage_id = get_pipeline_stage_id_for_quote(
+                job_data.get("quote_sent"),
+                job_data.get("quote_sent_stamp"),
+                job_data.get("job_is_scheduled_until_stamp")
+            )
         else:
             # Default fallback status IDs if not provided
-            default_status = "3a8236e9-07f8-4d8c-8782-6ec6f8e71a12" if is_reactivation else "d417fa3f-52df-426d-895b-4b9cfb0cfabf"
+            default_status = "d417fa3f-52df-426d-895b-4b9cfb0cfabf"
             job_status = job_data.get("status", default_status)
             
-            if is_reactivation:
-                pipeline_stage_id = map_servicem8_status_to_ghl_pipeline_for_reactivation(job_status)
-            else:
-                pipeline_stage_id = map_servicem8_status_to_ghl_pipeline(job_status)
+            pipeline_stage_id = map_servicem8_status_to_ghl_pipeline(job_status)
         
         payload = {}
         
@@ -460,9 +456,11 @@ def update_ghl_opportunity(opportunity_id, job_data, client_obj, ghl_token):
             payload['monetaryValue'] = new_monetary_value
             
         # Source
-        new_source = job_data.get("category_name", "serviceM8")
-        if current_opportunity.get('source') != new_source:
-            payload['source'] = new_source
+        if job_data.get("category_name"):
+            payload['source'] = job_data.get("category_name")
+        # new_source = job_data.get("category_name", "serviceM8")
+        # if current_opportunity.get('source') != new_source:
+        #     payload['source'] = new_source
             
         current_custom_fields = {field.get('id'): field.get('field_value') for field in current_opportunity.get('customFields', [])}
         
@@ -563,6 +561,7 @@ def update_or_create_appointment(job_data):
             
             # Update existing appointment in GoHighLevel
             status_code, response_data = update_appointment(
+                servicem8_appointment.get("staff_uuid"),
                 job_appointment_obj.ghl_id, 
                 formatted_start, 
                 formatted_end, 
@@ -580,6 +579,7 @@ def update_or_create_appointment(job_data):
         except JobAppointment.DoesNotExist:
             # Create new appointment in GoHighLevel
             status_code, response_data = create_appointment(
+                servicem8_appointment.get("staff_uuid"),
                 job_data,
                 formatted_start, 
                 formatted_end, 
@@ -609,7 +609,7 @@ def update_or_create_appointment(job_data):
 
 
 
-def create_appointment(job_data, start_date, end_date, token):
+def create_appointment(staff_uuid, job_data, start_date, end_date, token):
     """
     Creates a new appointment in GoHighLevel.
     
@@ -630,6 +630,8 @@ def create_appointment(job_data, start_date, end_date, token):
             'Content-Type': 'application/json',
             "Version": "2021-07-28",
         }
+        assigned_userid = get_ghl_id_by_uuid(staff_uuid)
+        
 
         data = {
             "calendarId": "URbFzsBiWyDsC0rp2xaQ",
@@ -641,6 +643,8 @@ def create_appointment(job_data, start_date, end_date, token):
             "toNotify":True,
             "ignoreDateRange": True
         }
+        if assigned_userid:
+            data["assignedUserId"] = assigned_userid
 
         print("data in create appointment----------------------> ", data)
 
@@ -657,7 +661,7 @@ def create_appointment(job_data, start_date, end_date, token):
         return 500, {"error": str(e)}
 
 
-def update_appointment(appointment_id, start_time, end_time, token):
+def update_appointment(staff_uuid, appointment_id, start_time, end_time, token):
 
     try:
         fetch_url = f"https://services.leadconnectorhq.com/calendars/events/appointments/{appointment_id}"
@@ -677,6 +681,11 @@ def update_appointment(appointment_id, start_time, end_time, token):
             return 404, {"error": "Appointment not found"}
         
         payload = {}
+
+        assigned_userid = get_ghl_id_by_uuid(staff_uuid)
+        if assigned_userid:
+            if current_appointment.get("assignedUserId") != assigned_userid:
+                payload['assignedUserId'] = assigned_userid
         
         if current_appointment.get('startTime') != start_time:
             payload['startTime'] = start_time

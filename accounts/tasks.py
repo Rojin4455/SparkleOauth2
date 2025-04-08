@@ -158,11 +158,10 @@ def handle_webhook_event(self,data):
     # Extract contact info or use empty dict if no contacts found
     contact_info = job_contact_data[-1] if job_contact_data and isinstance(job_contact_data, list) and len(job_contact_data) > 0 else {}
 
-    if job_data.get("category_uuid") and "category_uuid" in changed_fieids:
-        job_category_data = fetch_job_category(job_data.get("category_uuid"), serviceM8token.access_token)
-        if job_category_data:
-            job_data["category_name"] = job_category_data.get("name")
-            client_data['category_name'] = job_category_data.get("name")
+    job_category_data = fetch_job_category(job_data.get("category_uuid"), serviceM8token.access_token)
+    if job_category_data:
+        job_data["category_name"] = job_category_data.get("name")
+        client_data['category_name'] = job_category_data.get("name")
     client_data['job_is_scheduled_until_stamp'] = job_data.get("job_is_scheduled_until_stamp")
 
     
@@ -179,7 +178,7 @@ def handle_webhook_event(self,data):
             print("client: ", client)
         if client:
             job = get_or_create_job(job_data, client, ghl_token)
-        if "job_is_scheduled_until_stamp" in changed_fieids:
+        if "job_is_scheduled_until_stamp" in changed_fieids and job_data.get("status") == "Quote":
             job_data["contact_id"] = client.ghl_id
             appointment = update_or_create_appointment(job_data=job_data)
         # return {"status": "success", "job_id": job.uuid, "client_id": client.uuid}
