@@ -175,6 +175,12 @@ def handle_webhook_event(self,data):
 
         # if job_date > comparison_date and job_data.get("category_name","") != "Repeated Customer" and "Re engage" not in job_data.get("job_description",""):
         print("Job date is after 2025-03-10")
+        if contact_info.get("email"):
+            contact_info["email"] = contact_info["email"].strip()
+        if contact_info.get("phone"):
+            contact_info["phone"] = contact_info["phone"].strip()        
+        if contact_info.get("mobile"):
+            contact_info["mobile"] = contact_info["mobile"].strip()
         client = get_or_create_client(client_data, contact_info, ghl_token)
         if client and "client reactivation" in client.tags:
             print("craete job in reactivation pipeline")
