@@ -162,6 +162,9 @@ def handle_webhook_event(self,data):
     if job_category_data:
         job_data["category_name"] = job_category_data.get("name")
         client_data['category_name'] = job_category_data.get("name")
+    else:
+        job_data["category_name"] = "No Data"
+        client_data['category_name'] = "No Data"
     client_data['job_is_scheduled_until_stamp'] = job_data.get("job_is_scheduled_until_stamp")
 
     
