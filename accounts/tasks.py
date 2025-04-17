@@ -157,14 +157,18 @@ def handle_webhook_event(self,data):
     
     # Extract contact info or use empty dict if no contacts found
     contact_info = job_contact_data[-1] if job_contact_data and isinstance(job_contact_data, list) and len(job_contact_data) > 0 else {}
+    job_category_data = None
+    if job_data.get("category_uuid"):
+        try:
+            job_category_data = fetch_job_category(job_data.get("category_uuid"), serviceM8token.access_token)
+        except Exception as e:
+            print("Error fetching job category:", e)
+            job_category_data = None
 
-    job_category_data = fetch_job_category(job_data.get("category_uuid"), serviceM8token.access_token)
-    if job_category_data:
-        job_data["category_name"] = job_category_data.get("name")
-        client_data['category_name'] = job_category_data.get("name")
-    else:
-        job_data["category_name"] = "No Data"
-        client_data['category_name'] = "No Data"
+    category_name = job_category_data.get("name") if job_category_data and "name" in job_category_data else "No Data"
+
+    job_data["category_name"] = category_name
+    client_data["category_name"] = category_name
     client_data['job_is_scheduled_until_stamp'] = job_data.get("job_is_scheduled_until_stamp")
 
     

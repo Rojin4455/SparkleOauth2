@@ -111,4 +111,4 @@ def get_ghl_id_by_uuid(user_uuid):
     "0c7c29ed-617b-4d60-9545-20188119ee0b": "0qQi4zcCXxqowZjWszKE",  # Simon
     }
     
-    return uuid_to_ghl.get(user_uuid)
+    return uuid_to_ghl.get(user_uuid,"MPtQvLQmhq0HHCz9492d")
