@@ -87,7 +87,7 @@ def format_phone_number(number):
     number = number[-9:]
 
     # Prefix with "+61"
-    return f"%2B61{number}"
+    return f"+61{number}"
 
 
 
