@@ -166,14 +166,16 @@ def handle_webhook_event(self,data):
     # Use updated job_contact safely
     contact_info = job_contact
 
+    job_category_data = None  # <- Prevents UnboundLocalError
+
     if job_data.get("category_uuid"):
         try:
             job_category_data = fetch_job_category(job_data.get("category_uuid"), serviceM8token.access_token)
         except Exception as e:
             print("Error fetching job category:", e)
-            job_category_data = None
 
     category_name = job_category_data.get("name") if job_category_data and "name" in job_category_data else "No Data"
+
 
     job_data["category_name"] = category_name
     client_data["category_name"] = category_name
