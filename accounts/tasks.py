@@ -140,10 +140,18 @@ def handle_webhook_event(self,data):
     
     # Fetch contact information
     job_contact_data = fetch_job_contact(job_data.get("uuid"), serviceM8token.access_token)
-    if not job_contact_data:
+    job_contact = job_contact_data[0] if job_contact_data else {}
+
+    # Check if all three contact fields are missing
+    if not job_contact.get("email") and not job_contact.get("phone") and not job_contact.get("mobile"):
         # Try to fetch from company contacts as fallback
-        job_contact_data = fetch_company_contact(client_data.get('uuid'), serviceM8token.access_token)
-    
+        contact_data = fetch_company_contact(client_data.get('uuid'), serviceM8token.access_token)
+        if contact_data:
+            fallback_contact = contact_data[-1]  # Latest
+            job_contact["email"] = fallback_contact.get("email") or job_contact.get("email")
+            job_contact["phone"] = fallback_contact.get("phone") or job_contact.get("phone")
+            job_contact["mobile"] = fallback_contact.get("mobile") or job_contact.get("mobile")
+
     # Get GHL token
     try:
         ghl_credentials = GHLAuthCredentials.objects.first()
@@ -154,10 +162,10 @@ def handle_webhook_event(self,data):
     except Exception as e:
         print(f"Error retrieving GHL credentials: {str(e)}")
         return {"status": "error", "message": f"GHL credential error: {str(e)}"}
-    
-    # Extract contact info or use empty dict if no contacts found
-    contact_info = job_contact_data[-1] if job_contact_data and isinstance(job_contact_data, list) and len(job_contact_data) > 0 else {}
-    job_category_data = None
+
+    # Use updated job_contact safely
+    contact_info = job_contact
+
     if job_data.get("category_uuid"):
         try:
             job_category_data = fetch_job_category(job_data.get("category_uuid"), serviceM8token.access_token)
